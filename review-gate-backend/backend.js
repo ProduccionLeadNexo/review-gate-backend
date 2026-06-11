@@ -153,38 +153,44 @@ export async function receiveReview(req) {
 }
 
 // ============================================
-// 3. GENERAR RECOMENDACIÓN CON IA (Claude)
+// 3. GENERAR RECOMENDACIÓN CON IA (OpenAI)
 // ============================================
 async function generateAiRecommendation(bizName, rating, feedback, clientName) {
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'gpt-4o-mini',
         max_tokens: 200,
-        messages: [{
-          role: 'user',
-          content: `Eres un experto en atención al cliente para negocios locales en Chile. 
-Un cliente dejó una reseña negativa en "${bizName}":
+        messages: [
+          {
+            role: 'system',
+            content: 'Eres un experto en atención al cliente para negocios locales en Chile.'
+          },
+          {
+            role: 'user',
+            content: `Un cliente dejó una reseña negativa en "${bizName}":
 - Calificación: ${rating}/5 estrellas
 - Cliente: ${clientName || 'Anónimo'}
-- Comentario: "${feedback}"
+- Comentario: "${feedback || 'Sin comentario'}"
 
-Da UNA recomendación concreta y breve (máximo 2 oraciones) de cómo el dueño debe responder o actuar para recuperar a este cliente. Tono cercano y directo. Sin saludos ni formato.`
-        }]
+Da UNA recomendación concreta y breve, máximo 2 oraciones, de cómo el dueño debe responder o actuar para recuperar a este cliente. Tono cercano y directo. Sin saludos ni formato.`
+          }
+        ]
       })
     })
+
     const data = await res.json()
-    return data.content?.[0]?.text || ''
+    return data.choices?.[0]?.message?.content || 'Responde rápido y ofrece solucionar el problema personalmente.'
   } catch {
     return 'Responde rápido y ofrece solucionar el problema personalmente.'
   }
 }
+
 
 // ============================================
 // 4. EMAIL DE ALERTA NEGATIVA
