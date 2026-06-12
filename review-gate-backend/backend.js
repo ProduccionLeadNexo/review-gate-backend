@@ -435,6 +435,32 @@ export async function mpWebhook(req) {
 
   return { ok: true }
 }
+// ============================================
+// OBTENER NEGOCIO POR SLUG
+// GET /api/business/:slug
+// ============================================
+export async function getBusinessBySlug(req) {
+  const { slug } = req.params;
+
+  if (!slug) {
+    return { error: "Falta el slug del negocio." };
+  }
+
+  const { data: business, error } = await supabase
+    .from("businesses")
+    .select("id, name, slug, google_maps_url")
+    .eq("slug", slug)
+    .single();
+
+  if (error || !business) {
+    return { error: "Negocio no encontrado." };
+  }
+
+  return {
+    ok: true,
+    business,
+  };
+}
 
 // ============================================
 // 8. STATS DASHBOARD

@@ -8,6 +8,7 @@ import {
   registerBusiness,
   loginBusiness,
   receiveReview,
+  getBusinessBySlug,
   createSubscription,
   mpWebhook,
   getStats
@@ -28,6 +29,11 @@ app.post('/api/register', async (req, res) => {
 
 app.post('/api/login', async (req, res) => {
   const result = await loginBusiness(req)
+  res.json(result)
+})
+
+app.get('/api/business/:slug', async (req, res) => {
+  const result = await getBusinessBySlug(req)
   res.json(result)
 })
 
