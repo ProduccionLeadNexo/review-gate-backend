@@ -141,6 +141,86 @@ export async function loginBusiness(req) {
 }
 
 // ============================================
+// 3. RECIBIR RESEÑA
+//    POST /api/review
+// ============================================
+export async function receiveReview(req) {
+  const {
+    businessId,
+    rating,
+    feedback,
+    clientName,
+    clientPhone,
+    wantsContact
+  } = req.body;
+
+  if (!businessId || !rating) {
+    return { error: "Faltan datos obligatorios." };
+  }
+
+  const numericRating = Number(rating);
+
+  const { data: business, error: bizError } = await supabase
+    .from("businesses")
+    .select("*")
+    .eq("id", businessId)
+    .single();
+
+  if (bizError || !business) {
+    return { error: "Negocio no encontrado." };
+  }
+
+  const shouldGoToGoogle = numericRating >= 4;
+
+  const { data: review, error: reviewError } = await supabase
+    .from("reviews")
+    .insert({
+      business_id: businessId,
+      rating: numericRating,
+      feedback: feedback || "",
+      client_name: clientName || "Anónimo",
+      client_phone: clientPhone || null,
+      wants_contact: wantsContact || false,
+      sent_to_google: shouldGoToGoogle,
+      status: shouldGoToGoogle ? "google" : "filtered"
+    })
+    .select()
+    .single();
+
+  if (reviewError) {
+    return { error: reviewError.message };
+  }
+
+  if (shouldGoToGoogle) {
+    await sendPositiveNotification(business, numericRating);
+
+    return {
+      ok: true,
+      type: "positive",
+      redirectToGoogle: true,
+      googleUrl: business.google_maps_url
+    };
+  }
+
+  const aiTip = await generateAiRecommendation(
+    business.name,
+    numericRating,
+    feedback,
+    clientName
+  );
+
+  await sendNegativeAlert(business, review, aiTip);
+
+  return {
+    ok: true,
+    type: "negative",
+    redirectToGoogle: false,
+    message: "Gracias por tu comentario. El negocio recibirá tu feedback.",
+    aiTip
+  };
+}
+
+// ============================================
 // 3. GENERAR RECOMENDACIÓN CON IA (OpenAI)
 // ============================================
 async function generateAiRecommendation(bizName, rating, feedback, clientName) {
