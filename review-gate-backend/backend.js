@@ -95,61 +95,49 @@ export async function registerBusiness(req) {
 }
 
 // ============================================
-// 2. RECIBIR RESEÑA DESDE LA LANDING
-//    POST /api/review
+// 2. LOGIN DE CLIENTE
+//    POST /api/login
 // ============================================
-export async function receiveReview(req) {
-  const {
-    slug,          // identifica el negocio
-    rating,
-    clientName,
-    clientPhone,
-    feedback,
-    wantsContact
-  } = req.body
+export async function loginBusiness(req) {
+  const { email, password } = req.body;
 
-  // Buscar negocio por slug
-  const { data: biz } = await supabase
-    .from('businesses')
-    .select('*')
-    .eq('slug', slug)
-    .single()
-
-  if (!biz) return { error: 'Negocio no encontrado' }
-
-  const wentToGoogle = rating >= 4
-
-  // Guardar reseña
-  const { data: review } = await supabase
-    .from('reviews')
-    .insert({
-      business_id:    biz.id,
-      rating,
-      client_name:    clientName || null,
-      client_phone:   clientPhone || null,
-      feedback:       feedback || null,
-      wants_contact:  wantsContact || false,
-      went_to_google: wentToGoogle
-    })
-    .select()
-    .single()
-
-  if (wentToGoogle) {
-    // Reseña positiva — solo notificación celebratoria si quieres
-    await sendPositiveNotification(biz, rating)
-  } else {
-    // Reseña negativa — alerta urgente con recomendación IA
-    const aiTip = await generateAiRecommendation(biz.name, rating, feedback, clientName)
-    await sendNegativeAlert(biz, review, aiTip)
+  if (!email || !password) {
+    return { error: "Ingresa email y contraseña." };
   }
+
+  const { data: authData, error: authError } =
+    await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+  if (authError || !authData.user) {
+    return { error: "Email o contraseña incorrectos." };
+  }
+
+  const { data: business, error: businessError } = await supabase
+    .from("businesses")
+    .select("id, name, slug, google_maps_url, whatsapp_number, email_alerts")
+    .eq("owner_id", authData.user.id)
+    .single();
+
+  if (businessError || !business) {
+    return { error: "No encontramos un negocio asociado a este usuario." };
+  }
+
+  const landingUrl = `${CONFIG.appUrl}/r/${business.slug}`;
+  const waMessage = `Hola, gracias por visitarnos 😊 Si tienes un minuto, tu opinión nos ayuda mucho: ${landingUrl} ⭐`;
 
   return {
     ok: true,
-    wentToGoogle,
-    googleReviewUrl: wentToGoogle
-      ? `https://search.google.com/local/writereview?placeid=${biz.google_place_id}`
-      : null
-  }
+    business: {
+      id: business.id,
+      name: business.name,
+      slug: business.slug,
+    },
+    landingUrl,
+    waMessage,
+  };
 }
 
 // ============================================
@@ -190,7 +178,6 @@ Da UNA recomendación concreta y breve, máximo 2 oraciones, de cómo el dueño 
     return 'Responde rápido y ofrece solucionar el problema personalmente.'
   }
 }
-
 
 // ============================================
 // 4. EMAIL DE ALERTA NEGATIVA

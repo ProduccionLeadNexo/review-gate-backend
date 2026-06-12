@@ -6,6 +6,7 @@ import express from 'express'
 import cors from 'cors'
 import {
   registerBusiness,
+  loginBusiness,
   receiveReview,
   createSubscription,
   mpWebhook,
@@ -22,6 +23,11 @@ app.get('/', (req, res) => res.json({ ok: true, service: 'Review Gate API' }))
 // Registro de nuevo cliente
 app.post('/api/register', async (req, res) => {
   const result = await registerBusiness(req)
+  res.json(result)
+})
+
+app.post('/api/login', async (req, res) => {
+  const result = await loginBusiness(req)
   res.json(result)
 })
 
